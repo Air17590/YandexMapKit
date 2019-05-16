@@ -1,3 +1,8 @@
 <resources>
     <string name="app_name">YandexMapKit</string>
+    <string name="locatiom">Отсюда</string>
+    <string name="destination">Сюда</string>
+    <string name="create_route">Построить маршрут</string>
+    <string name="ok">ок</string>
+    <string name="route_error">Чтобы построить маршрут укажите место начала и окончания с помощью тапа по карте</string>
 </resources>

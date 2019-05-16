@@ -1,6 +1,8 @@
 package com.air.yandexmapkit
 
 import android.os.Bundle
+import android.support.design.widget.BottomSheetDialog
+import android.support.v7.app.AlertDialog
 import android.support.v7.app.AppCompatActivity
 import com.yandex.mapkit.Animation
 import com.yandex.mapkit.MapKitFactory
@@ -11,29 +13,43 @@ import com.yandex.mapkit.directions.driving.DrivingOptions
 import com.yandex.mapkit.directions.driving.DrivingRoute
 import com.yandex.mapkit.directions.driving.DrivingSession
 import com.yandex.mapkit.geometry.Point
-import com.yandex.mapkit.map.CameraPosition
-import com.yandex.mapkit.map.MapObjectCollection
-import com.yandex.mapkit.user_location.UserLocationTapListener
+import com.yandex.mapkit.map.*
+import com.yandex.mapkit.map.Map
+import com.yandex.runtime.image.ImageProvider
 import kotlinx.android.synthetic.main.activity_main.*
+import kotlinx.android.synthetic.main.dialog_bottom.view.*
 import com.yandex.mapkit.directions.driving.DrivingSession.DrivingRouteListener as DrivingRouteListener1
 
 
-class MainActivity : AppCompatActivity(),DrivingSession.DrivingRouteListener {
+class MainActivity : AppCompatActivity(), DrivingSession.DrivingRouteListener, InputListener {
     private var mapObjects: MapObjectCollection? = null
+    private var location: RequestPoint? = null
+    private var locationObj: MapObject? = null
+    private var destination: RequestPoint? = null
+    private var destinationObj: MapObject? = null
+    private var routes: MutableList<PolylineMapObject> = mutableListOf()
+
+    override fun onMapLongTap(p0: Map, p1: Point) {}
+    override fun onMapTap(p0: Map, p1: Point) {
+        showDialog(p1)
+    }
+
     override fun onDrivingRoutesError(p0: com.yandex.runtime.Error) {
         print("")
     }
 
     override fun onDrivingRoutes(p0: MutableList<DrivingRoute>) {
-        val d = p0[0]
+        routes.forEach { mapObjects?.remove(it) }
+        routes.clear()
         p0.forEach {
-            mapObjects?.addPolyline(it.geometry)
+            mapObjects?.addPolyline(it.geometry)?.let { polyObj ->
+                routes.add(polyObj)
+            }
         }
-        print("")
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        MapKitFactory.setApiKey("Key")
+        MapKitFactory.setApiKey("cce58919-fc3a-401a-ae13-aaa1d03284da")
         MapKitFactory.initialize(this)
         setContentView(R.layout.activity_main)
         super.onCreate(savedInstanceState)
@@ -41,36 +57,17 @@ class MainActivity : AppCompatActivity(),DrivingSession.DrivingRouteListener {
             CameraPosition(Point(55.751574, 37.573856), 11.0f, 0.0f, 0.0f),
             Animation(Animation.Type.SMOOTH, 0f), null
         )
-        val personaLayer = MapKitFactory.getInstance().createPersonalizedPoiLayer(mapview.mapWindow)
-        val trafficLayer = MapKitFactory.getInstance().createTrafficLayer(mapview.mapWindow)
-//        val s = GeoObjectTapListener { it ->
-//            textview.text = it.geoObject.name.toString()
-//            true
-//        }
-        personaLayer.isVisible = true
-        // mapview.map.addTapListener(s)
-
         btn.setOnClickListener {
-            mapview.map.isDebugInfoEnabled = true
+            if (location == null || destination == null) return@setOnClickListener showError()
             DirectionsFactory.initialize(this)
             val drvRouter = DirectionsFactory.getInstance().createDrivingRouter()
             val drOption = DrivingOptions()
             drOption.alternativeCount = 3
-            val repoint1 = RequestPoint(Point(55.751574, 37.573856), RequestPointType.WAYPOINT, "")
-            val repoint2 = RequestPoint(Point(55.751574, 38.573856), RequestPointType.WAYPOINT, "")
-            val arr = arrayListOf<RequestPoint>(repoint1, repoint2)
+            val arr = arrayListOf(location!!, destination!!)
             val drvSession = drvRouter.requestRoutes(arr, drOption, this)
-            drvSession.retry(this)
-            drvRouter.resume()
         }
-        mapview.map.userLocationLayer.isEnabled = true
-
-        val ssd = UserLocationTapListener {
-            textview.text = "${it.latitude} ${it.longitude}"
-        }
-        mapview.map.userLocationLayer.setTapListener(ssd)
         mapObjects = mapview.map.mapObjects.addCollection()
-
+        mapview.map.addInputListener(this)
     }
 
     override fun onStart() {
@@ -86,4 +83,32 @@ class MainActivity : AppCompatActivity(),DrivingSession.DrivingRouteListener {
     }
 
 
+    private fun showDialog(p: Point) {
+        val mBottomSheetDialog = BottomSheetDialog(this)
+        val sheetView = this.layoutInflater.inflate(R.layout.dialog_bottom, null)
+        sheetView.point_from_btn.setOnClickListener {
+            locationObj?.let { mapObjects?.remove(it) }
+            locationObj = mapObjects?.addPlacemark(p, ImageProvider.fromResource(this, R.mipmap.ic_location_point))
+            location = RequestPoint(p, RequestPointType.WAYPOINT, "")
+            mBottomSheetDialog.dismiss()
+        }
+        sheetView.point_to_btn.setOnClickListener {
+            destinationObj?.let { mapObjects?.remove(it) }
+            destinationObj =
+                mapObjects?.addPlacemark(p, ImageProvider.fromResource(this, R.mipmap.ic_destination_point))
+            destination = RequestPoint(p, RequestPointType.WAYPOINT, "")
+            mBottomSheetDialog.dismiss()
+        }
+        mBottomSheetDialog.setContentView(sheetView)
+        mBottomSheetDialog.show()
+    }
+
+    private fun showError() {
+        val builder = AlertDialog.Builder(this)
+        builder.setMessage(getString(R.string.route_error))
+            .setNeutralButton(
+                getString(R.string.ok)
+            ) { dialog, _ -> dialog.cancel() }
+        builder.create().show()
+    }
 }
