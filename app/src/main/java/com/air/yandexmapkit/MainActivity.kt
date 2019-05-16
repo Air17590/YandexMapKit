@@ -2,8 +2,7 @@ package com.air.yandexmapkit
 
 import android.os.Bundle
 import android.support.design.widget.BottomSheetDialog
-import android.support.v7.app.AlertDialog
-import android.support.v7.app.AppCompatActivity
+import com.air.yandexmapkit.base.BaseActivity
 import com.yandex.mapkit.Animation
 import com.yandex.mapkit.MapKitFactory
 import com.yandex.mapkit.RequestPoint
@@ -11,7 +10,6 @@ import com.yandex.mapkit.RequestPointType
 import com.yandex.mapkit.directions.DirectionsFactory
 import com.yandex.mapkit.directions.driving.DrivingOptions
 import com.yandex.mapkit.directions.driving.DrivingRoute
-import com.yandex.mapkit.directions.driving.DrivingSession
 import com.yandex.mapkit.geometry.Point
 import com.yandex.mapkit.map.*
 import com.yandex.mapkit.map.Map
@@ -21,7 +19,7 @@ import kotlinx.android.synthetic.main.dialog_bottom.view.*
 import com.yandex.mapkit.directions.driving.DrivingSession.DrivingRouteListener as DrivingRouteListener1
 
 
-class MainActivity : AppCompatActivity(), DrivingSession.DrivingRouteListener, InputListener {
+class MainActivity : BaseActivity() {
     private var mapObjects: MapObjectCollection? = null
     private var location: RequestPoint? = null
     private var locationObj: MapObject? = null
@@ -29,7 +27,6 @@ class MainActivity : AppCompatActivity(), DrivingSession.DrivingRouteListener, I
     private var destinationObj: MapObject? = null
     private var routes: MutableList<PolylineMapObject> = mutableListOf()
 
-    override fun onMapLongTap(p0: Map, p1: Point) {}
     override fun onMapTap(p0: Map, p1: Point) {
         showDialog(p1)
     }
@@ -39,8 +36,7 @@ class MainActivity : AppCompatActivity(), DrivingSession.DrivingRouteListener, I
     }
 
     override fun onDrivingRoutes(p0: MutableList<DrivingRoute>) {
-        routes.forEach { mapObjects?.remove(it) }
-        routes.clear()
+        clearRoutes()
         p0.forEach {
             mapObjects?.addPolyline(it.geometry)?.let { polyObj ->
                 routes.add(polyObj)
@@ -82,17 +78,23 @@ class MainActivity : AppCompatActivity(), DrivingSession.DrivingRouteListener, I
         MapKitFactory.getInstance().onStop()
     }
 
+    private fun clearRoutes() {
+        routes.forEach { mapObjects?.remove(it) }
+        routes.clear()
+    }
 
     private fun showDialog(p: Point) {
         val mBottomSheetDialog = BottomSheetDialog(this)
         val sheetView = this.layoutInflater.inflate(R.layout.dialog_bottom, null)
         sheetView.point_from_btn.setOnClickListener {
+            clearRoutes()
             locationObj?.let { mapObjects?.remove(it) }
             locationObj = mapObjects?.addPlacemark(p, ImageProvider.fromResource(this, R.mipmap.ic_location_point))
             location = RequestPoint(p, RequestPointType.WAYPOINT, "")
             mBottomSheetDialog.dismiss()
         }
         sheetView.point_to_btn.setOnClickListener {
+            clearRoutes()
             destinationObj?.let { mapObjects?.remove(it) }
             destinationObj =
                 mapObjects?.addPlacemark(p, ImageProvider.fromResource(this, R.mipmap.ic_destination_point))
@@ -103,12 +105,5 @@ class MainActivity : AppCompatActivity(), DrivingSession.DrivingRouteListener, I
         mBottomSheetDialog.show()
     }
 
-    private fun showError() {
-        val builder = AlertDialog.Builder(this)
-        builder.setMessage(getString(R.string.route_error))
-            .setNeutralButton(
-                getString(R.string.ok)
-            ) { dialog, _ -> dialog.cancel() }
-        builder.create().show()
-    }
+
 }

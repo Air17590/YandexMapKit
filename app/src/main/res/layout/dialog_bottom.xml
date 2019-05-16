@@ -1,12 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout app:layout_behavior="android.support.design.widget.BottomSheetBehavior"
+<LinearLayout xmlns:tools="http://schemas.android.com/tools"
+              xmlns:android="http://schemas.android.com/apk/res/android"
+              xmlns:app="http://schemas.android.com/apk/res-auto"
+              app:layout_behavior="android.support.design.widget.BottomSheetBehavior"
               android:id="@+id/fragment_history_menu_bottom"
               android:layout_width="match_parent"
               android:layout_height="180dp"
               android:orientation="vertical"
-              android:background="#ffffff"
-              xmlns:android="http://schemas.android.com/apk/res/android"
-              xmlns:app="http://schemas.android.com/apk/res-auto">
+              android:background="#ffffff">
     <LinearLayout
             android:id="@+id/point_from_btn"
             android:layout_width="match_parent"
@@ -26,7 +27,8 @@
                 android:layout_height="wrap_content"
                 android:layout_gravity="center"
                 android:layout_marginLeft="16dp"
-                android:text="@string/locatiom"/>
+                android:text="@string/locatiom"
+                tools:ignore="RtlHardcoded"/>
     </LinearLayout>
     <LinearLayout
             android:id="@+id/point_to_btn"
@@ -47,6 +49,7 @@
                 android:layout_height="wrap_content"
                 android:layout_gravity="center"
                 android:layout_marginLeft="16dp"
-                android:text="@string/destination"/>
+                android:text="@string/destination"
+                tools:ignore="RtlHardcoded"/>
     </LinearLayout>
 </LinearLayout>
