@@ -34,9 +34,5 @@ dependencies {
 
     //map
     implementation 'com.yandex.android:mapkit:3.3.1'
-
     implementation 'com.yandex.android:directions:3.3.1'
-    implementation 'com.yandex.android:places:3.3.1'
-    implementation 'com.yandex.android:search:3.3.1'
-    implementation 'com.yandex.android:transport:3.3.1'
 }
