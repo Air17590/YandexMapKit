@@ -1,8 +1,11 @@
 package com.air.yandexmapkit
 
 import android.os.Bundle
+import android.support.design.widget.BottomSheetBehavior
 import android.support.design.widget.BottomSheetDialog
+import android.view.ViewGroup
 import com.air.yandexmapkit.base.BaseActivity
+import com.air.yandexmapkit.model.RouteSession
 import com.yandex.mapkit.Animation
 import com.yandex.mapkit.MapKitFactory
 import com.yandex.mapkit.RequestPoint
@@ -11,8 +14,9 @@ import com.yandex.mapkit.directions.DirectionsFactory
 import com.yandex.mapkit.directions.driving.DrivingOptions
 import com.yandex.mapkit.directions.driving.DrivingRoute
 import com.yandex.mapkit.geometry.Point
-import com.yandex.mapkit.map.*
+import com.yandex.mapkit.map.CameraPosition
 import com.yandex.mapkit.map.Map
+import com.yandex.mapkit.map.MapObjectCollection
 import com.yandex.runtime.image.ImageProvider
 import kotlinx.android.synthetic.main.activity_main.*
 import kotlinx.android.synthetic.main.dialog_bottom.view.*
@@ -21,11 +25,7 @@ import com.yandex.mapkit.directions.driving.DrivingSession.DrivingRouteListener 
 
 class MainActivity : BaseActivity() {
     private var mapObjects: MapObjectCollection? = null
-    private var location: RequestPoint? = null
-    private var locationObj: MapObject? = null
-    private var destination: RequestPoint? = null
-    private var destinationObj: MapObject? = null
-    private var routes: MutableList<PolylineMapObject> = mutableListOf()
+    private var routeSession = RouteSession()
 
     override fun onMapTap(p0: Map, p1: Point) {
         showDialog(p1)
@@ -37,9 +37,10 @@ class MainActivity : BaseActivity() {
 
     override fun onDrivingRoutes(p0: MutableList<DrivingRoute>) {
         clearRoutes()
+        routeSession.driveRoutes = p0
         p0.forEach {
             mapObjects?.addPolyline(it.geometry)?.let { polyObj ->
-                routes.add(polyObj)
+                routeSession.routesObjs.add(polyObj)
             }
         }
     }
@@ -54,16 +55,39 @@ class MainActivity : BaseActivity() {
             Animation(Animation.Type.SMOOTH, 0f), null
         )
         btn.setOnClickListener {
-            if (location == null || destination == null) return@setOnClickListener showError()
-            DirectionsFactory.initialize(this)
+            if (routeSession.location == null || routeSession.destination == null) return@setOnClickListener showError()
             val drvRouter = DirectionsFactory.getInstance().createDrivingRouter()
             val drOption = DrivingOptions()
             drOption.alternativeCount = 3
-            val arr = arrayListOf(location!!, destination!!)
+            val arr = arrayListOf(routeSession.location!!, routeSession.destination!!)
             val drvSession = drvRouter.requestRoutes(arr, drOption, this)
         }
         mapObjects = mapview.map.mapObjects.addCollection()
+        DirectionsFactory.initialize(this)
         mapview.map.addInputListener(this)
+        (savedInstanceState?.getSerializable(SAVE_STATE) as? RouteSession)?.let {
+            routeSession = it
+            initRoute()
+        }
+    }
+
+    fun initRoute() {
+        routeSession.location?.let {
+            routeSession.locationObj =
+                mapObjects?.addPlacemark(it.point, ImageProvider.fromResource(this, R.mipmap.ic_location_point))
+        }
+        routeSession.destination?.let {
+            routeSession.destinationObj =
+                mapObjects?.addPlacemark(it.point, ImageProvider.fromResource(this, R.mipmap.ic_destination_point))
+        }
+        if (routeSession.routesObjs.isNotEmpty()) {
+            routeSession.routesObjs.clear()
+            routeSession.driveRoutes.forEach {
+                mapObjects?.addPolyline(it.geometry)?.let { polyObj ->
+                    routeSession.routesObjs.add(polyObj)
+                }
+            }
+        }
     }
 
     override fun onStart() {
@@ -78,32 +102,48 @@ class MainActivity : BaseActivity() {
         MapKitFactory.getInstance().onStop()
     }
 
+    override fun onSaveInstanceState(outState: Bundle?) {
+        outState?.putSerializable(SAVE_STATE, routeSession)
+        super.onSaveInstanceState(outState)
+    }
+
     private fun clearRoutes() {
-        routes.forEach { mapObjects?.remove(it) }
-        routes.clear()
+        routeSession.routesObjs.forEach { mapObjects?.remove(it) }
+        routeSession.routesObjs.clear()
     }
 
     private fun showDialog(p: Point) {
         val mBottomSheetDialog = BottomSheetDialog(this)
-        val sheetView = this.layoutInflater.inflate(R.layout.dialog_bottom, null)
+        val sheetView = this.layoutInflater.inflate(
+            R.layout.dialog_bottom,
+            null
+        )
         sheetView.point_from_btn.setOnClickListener {
             clearRoutes()
-            locationObj?.let { mapObjects?.remove(it) }
-            locationObj = mapObjects?.addPlacemark(p, ImageProvider.fromResource(this, R.mipmap.ic_location_point))
-            location = RequestPoint(p, RequestPointType.WAYPOINT, "")
+            routeSession.locationObj?.let { mapObjects?.remove(it) }
+            routeSession.locationObj =
+                mapObjects?.addPlacemark(p, ImageProvider.fromResource(this, R.mipmap.ic_location_point))
+            routeSession.location = RequestPoint(p, RequestPointType.WAYPOINT, "")
             mBottomSheetDialog.dismiss()
         }
         sheetView.point_to_btn.setOnClickListener {
             clearRoutes()
-            destinationObj?.let { mapObjects?.remove(it) }
-            destinationObj =
+            routeSession.destinationObj?.let { mapObjects?.remove(it) }
+            routeSession.destinationObj =
                 mapObjects?.addPlacemark(p, ImageProvider.fromResource(this, R.mipmap.ic_destination_point))
-            destination = RequestPoint(p, RequestPointType.WAYPOINT, "")
+            routeSession.destination = RequestPoint(p, RequestPointType.WAYPOINT, "")
             mBottomSheetDialog.dismiss()
         }
         mBottomSheetDialog.setContentView(sheetView)
+        mBottomSheetDialog.setOnShowListener {
+            val bottomSheet = mBottomSheetDialog.findViewById<ViewGroup>(R.id.design_bottom_sheet)
+            val behavior = BottomSheetBehavior.from(bottomSheet)
+            behavior.state = BottomSheetBehavior.STATE_EXPANDED
+        }
         mBottomSheetDialog.show()
     }
 
-
+    companion object {
+        const val SAVE_STATE = "SAVE_STATE"
+    }
 }
