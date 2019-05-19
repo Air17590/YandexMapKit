@@ -13,6 +13,7 @@ import com.yandex.mapkit.RequestPointType
 import com.yandex.mapkit.directions.DirectionsFactory
 import com.yandex.mapkit.directions.driving.DrivingOptions
 import com.yandex.mapkit.directions.driving.DrivingRoute
+import com.yandex.mapkit.directions.driving.DrivingRouter
 import com.yandex.mapkit.geometry.Point
 import com.yandex.mapkit.map.CameraPosition
 import com.yandex.mapkit.map.Map
@@ -25,6 +26,7 @@ import com.yandex.mapkit.directions.driving.DrivingSession.DrivingRouteListener 
 
 class MainActivity : BaseActivity() {
     private var mapObjects: MapObjectCollection? = null
+    private var drvRouter: DrivingRouter? = null
     private var routeSession = RouteSession()
 
     override fun onMapTap(p0: Map, p1: Point) {
@@ -37,9 +39,11 @@ class MainActivity : BaseActivity() {
 
     override fun onDrivingRoutes(p0: MutableList<DrivingRoute>) {
         clearRoutes()
-        routeSession.driveRoutes = p0
-        p0.forEach {
-            mapObjects?.addPolyline(it.geometry)?.let { polyObj ->
+        p0.forEach { route ->
+            drvRouter?.routeSerializer()?.save(route)?.let {
+                routeSession.driveRoutes.add(it)
+            }
+            mapObjects?.addPolyline(route.geometry)?.let { polyObj ->
                 routeSession.routesObjs.add(polyObj)
             }
         }
@@ -54,18 +58,20 @@ class MainActivity : BaseActivity() {
             CameraPosition(Point(55.751574, 37.573856), 11.0f, 0.0f, 0.0f),
             Animation(Animation.Type.SMOOTH, 0f), null
         )
+
         btn.setOnClickListener {
             if (routeSession.location == null || routeSession.destination == null) return@setOnClickListener showError()
-            val drvRouter = DirectionsFactory.getInstance().createDrivingRouter()
             val drOption = DrivingOptions()
             drOption.alternativeCount = 3
             val arr = arrayListOf(routeSession.location!!, routeSession.destination!!)
-            val drvSession = drvRouter.requestRoutes(arr, drOption, this)
+            val drvSession = drvRouter?.requestRoutes(arr, drOption, this)
+
         }
         mapObjects = mapview.map.mapObjects.addCollection()
         DirectionsFactory.initialize(this)
         mapview.map.addInputListener(this)
-        (savedInstanceState?.getSerializable(SAVE_STATE) as? RouteSession)?.let {
+        drvRouter = DirectionsFactory.getInstance().createDrivingRouter()
+        savedInstanceState?.getParcelable<RouteSession>(SAVE_STATE)?.let {
             routeSession = it
             initRoute()
         }
@@ -80,10 +86,9 @@ class MainActivity : BaseActivity() {
             routeSession.destinationObj =
                 mapObjects?.addPlacemark(it.point, ImageProvider.fromResource(this, R.mipmap.ic_destination_point))
         }
-        if (routeSession.routesObjs.isNotEmpty()) {
-            routeSession.routesObjs.clear()
-            routeSession.driveRoutes.forEach {
-                mapObjects?.addPolyline(it.geometry)?.let { polyObj ->
+        routeSession.driveRoutes.forEach {
+            drvRouter?.routeSerializer()?.load(it)?.let { route ->
+                mapObjects?.addPolyline(route.geometry)?.let { polyObj ->
                     routeSession.routesObjs.add(polyObj)
                 }
             }
@@ -103,13 +108,13 @@ class MainActivity : BaseActivity() {
     }
 
     override fun onSaveInstanceState(outState: Bundle?) {
-        outState?.putSerializable(SAVE_STATE, routeSession)
+        outState?.putParcelable(SAVE_STATE, routeSession)
         super.onSaveInstanceState(outState)
     }
 
     private fun clearRoutes() {
         routeSession.routesObjs.forEach { mapObjects?.remove(it) }
-        routeSession.routesObjs.clear()
+        routeSession.clearRoutes()
     }
 
     private fun showDialog(p: Point) {
