@@ -1,8 +1,12 @@
 package com.air.yandexmapkit
 
+import android.content.pm.PackageManager
+import android.graphics.PointF
 import android.os.Bundle
 import android.support.design.widget.BottomSheetBehavior
 import android.support.design.widget.BottomSheetDialog
+import android.support.v4.app.ActivityCompat
+import android.support.v4.content.ContextCompat
 import android.view.ViewGroup
 import com.air.yandexmapkit.base.BaseActivity
 import com.air.yandexmapkit.model.RouteSession
@@ -15,39 +19,24 @@ import com.yandex.mapkit.directions.driving.DrivingOptions
 import com.yandex.mapkit.directions.driving.DrivingRoute
 import com.yandex.mapkit.directions.driving.DrivingRouter
 import com.yandex.mapkit.geometry.Point
-import com.yandex.mapkit.map.CameraPosition
+import com.yandex.mapkit.layers.ObjectEvent
+import com.yandex.mapkit.map.*
 import com.yandex.mapkit.map.Map
-import com.yandex.mapkit.map.MapObjectCollection
+import com.yandex.mapkit.user_location.UserLocationLayer
+import com.yandex.mapkit.user_location.UserLocationObjectListener
+import com.yandex.mapkit.user_location.UserLocationView
 import com.yandex.runtime.image.ImageProvider
 import kotlinx.android.synthetic.main.activity_main.*
 import kotlinx.android.synthetic.main.dialog_bottom.view.*
 import com.yandex.mapkit.directions.driving.DrivingSession.DrivingRouteListener as DrivingRouteListener1
 
 
-class MainActivity : BaseActivity() {
+class MainActivity : BaseActivity(), UserLocationObjectListener {
     private var mapObjects: MapObjectCollection? = null
     private var drvRouter: DrivingRouter? = null
     private var routeSession = RouteSession()
+    private var userLocationLayer: UserLocationLayer? = null
 
-    override fun onMapTap(p0: Map, p1: Point) {
-        showDialog(p1)
-    }
-
-    override fun onDrivingRoutesError(p0: com.yandex.runtime.Error) {
-        print("")
-    }
-
-    override fun onDrivingRoutes(p0: MutableList<DrivingRoute>) {
-        clearRoutes()
-        p0.forEach { route ->
-            drvRouter?.routeSerializer()?.save(route)?.let {
-                routeSession.driveRoutes.add(it)
-            }
-            mapObjects?.addPolyline(route.geometry)?.let { polyObj ->
-                routeSession.routesObjs.add(polyObj)
-            }
-        }
-    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         MapKitFactory.setApiKey("cce58919-fc3a-401a-ae13-aaa1d03284da")
@@ -58,7 +47,14 @@ class MainActivity : BaseActivity() {
             CameraPosition(Point(55.751574, 37.573856), 11.0f, 0.0f, 0.0f),
             Animation(Animation.Type.SMOOTH, 0f), null
         )
-
+        if (ContextCompat.checkSelfPermission(this, LOCATION_PERMISSION_NAME) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(
+                this,
+                arrayOf(LOCATION_PERMISSION_NAME), LOCATION_PERMISSION_REQUEST
+            )
+        } else {
+            addUserLocationLayer()
+        }
         btn.setOnClickListener {
             if (routeSession.location == null || routeSession.destination == null) return@setOnClickListener showError()
             val drOption = DrivingOptions()
@@ -148,7 +144,76 @@ class MainActivity : BaseActivity() {
         mBottomSheetDialog.show()
     }
 
+    private fun addUserLocationLayer() {
+        userLocationLayer = mapview.map.userLocationLayer
+        userLocationLayer?.isEnabled = true
+        userLocationLayer?.isHeadingEnabled = true
+        userLocationLayer?.setObjectListener(this)
+    }
+
+    override fun onMapTap(p0: Map, p1: Point) {
+        showDialog(p1)
+    }
+
+    override fun onDrivingRoutesError(p0: com.yandex.runtime.Error) {
+        print("")
+    }
+
+    override fun onDrivingRoutes(p0: MutableList<DrivingRoute>) {
+        clearRoutes()
+        p0.forEach { route ->
+            drvRouter?.routeSerializer()?.save(route)?.let {
+                routeSession.driveRoutes.add(it)
+            }
+            mapObjects?.addPolyline(route.geometry)?.let { polyObj ->
+                routeSession.routesObjs.add(polyObj)
+            }
+        }
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
+        if (requestCode == LOCATION_PERMISSION_REQUEST) {
+            addUserLocationLayer()
+        } else {
+            super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        }
+    }
+
+    override fun onObjectUpdated(p0: UserLocationView, p1: ObjectEvent) {}
+
+    override fun onObjectRemoved(p0: UserLocationView) {}
+
+    override fun onObjectAdded(p0: UserLocationView) {
+        userLocationLayer?.setAnchor(
+            PointF((mapview.width * 0.5).toFloat(), (mapview.height * 0.5).toFloat()),
+            PointF((mapview.width * 0.5).toFloat(), (mapview.height * 0.83).toFloat())
+        )
+
+        p0.arrow.setIcon(
+            ImageProvider.fromResource(
+                this, R.mipmap.ic_user_location_point
+            )
+        )
+        val pinIcon = p0.pin.useCompositeIcon()
+        pinIcon.setIcon(
+            "pin",
+            ImageProvider.fromResource(this, R.mipmap.ic_user_location_point),
+            IconStyle().setAnchor(PointF(0.5f, 0.5f))
+                .setRotationType(RotationType.ROTATE)
+                .setZIndex(1f)
+                .setScale(0.5f)
+        )
+        userLocationLayer?.cameraPosition()?.target?.let {
+            mapview.map.move(
+                CameraPosition(it, 11.0f, 0.0f, 0.0f),
+                Animation(Animation.Type.SMOOTH, 0f), null
+            )
+        }
+    }
+
     companion object {
         const val SAVE_STATE = "SAVE_STATE"
+        private const val LOCATION_PERMISSION_NAME = "android.permission.ACCESS_FINE_LOCATION"
+        private const val LOCATION_PERMISSION_REQUEST = 1
     }
 }
